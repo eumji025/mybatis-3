@@ -124,18 +124,23 @@ public class MapperAnnotationBuilder {
   }
 
   public void parse() {
+    //mapper接口的名称
     String resource = type.toString();
-    if (!configuration.isResourceLoaded(resource)) {
+    if (!configuration.isResourceLoaded(resource)) {//如果没有被加载过
+      //加载对应呃xml文件
       loadXmlResource();
+      //记录到已经加载的列表
       configuration.addLoadedResource(resource);
       assistant.setCurrentNamespace(type.getName());
-      parseCache();
-      parseCacheRef();
+      parseCache();//解析缓存注解
+      parseCacheRef();//
+      //遍历所有的方法
       Method[] methods = type.getMethods();
       for (Method method : methods) {
         try {
           // issue #237
           if (!method.isBridge()) {
+            //解析方法对应的statement
             parseStatement(method);
           }
         } catch (IncompleteElementException e) {
@@ -143,6 +148,7 @@ public class MapperAnnotationBuilder {
         }
       }
     }
+    //移除pending的方法 - 即上面的异常
     parsePendingMethods();
   }
 
@@ -298,15 +304,19 @@ public class MapperAnnotationBuilder {
 
   void parseStatement(Method method) {
     Class<?> parameterTypeClass = getParameterType(method);
+    //3.5.1新增的语言驱动，用于模板语言的
     LanguageDriver languageDriver = getLanguageDriver(method);
+    //通过注解解析sqlSource
     SqlSource sqlSource = getSqlSourceFromAnnotations(method, parameterTypeClass, languageDriver);
     if (sqlSource != null) {
       Options options = method.getAnnotation(Options.class);
+      //statement
       final String mappedStatementId = type.getName() + "." + method.getName();
       Integer fetchSize = null;
       Integer timeout = null;
       StatementType statementType = StatementType.PREPARED;
       ResultSetType resultSetType = null;
+      //sql类型
       SqlCommandType sqlCommandType = getSqlCommandType(method);
       boolean isSelect = sqlCommandType == SqlCommandType.SELECT;
       boolean flushCache = !isSelect;
@@ -315,8 +325,9 @@ public class MapperAnnotationBuilder {
       KeyGenerator keyGenerator;
       String keyProperty = null;
       String keyColumn = null;
+      //新增和更新
       if (SqlCommandType.INSERT.equals(sqlCommandType) || SqlCommandType.UPDATE.equals(sqlCommandType)) {
-        // first check for SelectKey annotation - that overrides everything else
+        // 获取selectKey注解 并构建KeyGenerator信息
         SelectKey selectKey = method.getAnnotation(SelectKey.class);
         if (selectKey != null) {
           keyGenerator = handleSelectKeyAnnotation(selectKey, mappedStatementId, getParameterType(method), languageDriver);
@@ -344,15 +355,15 @@ public class MapperAnnotationBuilder {
         statementType = options.statementType();
         resultSetType = options.resultSetType();
       }
-
-      String resultMapId = null;
+       String resultMapId = null;
+      //resultMap注解解析
       ResultMap resultMapAnnotation = method.getAnnotation(ResultMap.class);
       if (resultMapAnnotation != null) {
         resultMapId = String.join(",", resultMapAnnotation.value());
       } else if (isSelect) {
         resultMapId = parseResultMap(method);
       }
-
+      //将信息记录到mappedStatement
       assistant.addMappedStatement(
           mappedStatementId,
           sqlSource,
@@ -465,17 +476,22 @@ public class MapperAnnotationBuilder {
 
   private SqlSource getSqlSourceFromAnnotations(Method method, Class<?> parameterType, LanguageDriver languageDriver) {
     try {
+      //sql注解
       Class<? extends Annotation> sqlAnnotationType = getSqlAnnotationType(method);
+      //sql的提供者注解
       Class<? extends Annotation> sqlProviderAnnotationType = getSqlProviderAnnotationType(method);
       if (sqlAnnotationType != null) {
         if (sqlProviderAnnotationType != null) {
           throw new BindingException("You cannot supply both a static SQL and SqlProvider to method named " + method.getName());
         }
         Annotation sqlAnnotation = method.getAnnotation(sqlAnnotationType);
+        //获取注解的value值
         final String[] strings = (String[]) sqlAnnotation.getClass().getMethod("value").invoke(sqlAnnotation);
+        //通过languageDriver构建slqSource
         return buildSqlSourceFromStrings(strings, parameterType, languageDriver);
       } else if (sqlProviderAnnotationType != null) {
         Annotation sqlProviderAnnotation = method.getAnnotation(sqlProviderAnnotationType);
+        //构建ProviderSqlSource
         return new ProviderSqlSource(assistant.getConfiguration(), sqlProviderAnnotation, type, method);
       }
       return null;
